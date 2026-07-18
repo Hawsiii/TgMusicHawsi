@@ -212,7 +212,7 @@ func (y *youTubeData) resolveLiveStream(videoID string) (string, bool, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-
+slog.Info("Running yt-dlp resolver", "args", args)
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 
 	out, err := cmd.Output()
@@ -282,7 +282,7 @@ ytdlpParams := y.buildYtdlpParamsWithCookie(videoID, video, cookieFile)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-
+slog.Info("Running yt-dlp", "args", ytdlpParams)
 	cmd := exec.CommandContext(ctx, ytdlpParams[0], ytdlpParams[1:]...)
 
 	output, err := cmd.Output()
@@ -329,10 +329,16 @@ func (y *youTubeData) getCookieFile() string {
 	n, err := rand.Int(rand.Reader, big.NewInt(int64(len(cookiesPath))))
 	if err != nil {
 		slog.Warn("Could not generate random cookie index", "error", err)
+
+		slog.Info("Using cookie", "file", cookiesPath[0])
 		return cookiesPath[0]
 	}
 
-	return cookiesPath[n.Int64()]
+	cookie := cookiesPath[n.Int64()]
+
+	slog.Info("Using cookie", "file", cookie)
+
+	return cookie
 }
 func (y *youTubeData) buildYtdlpParamsWithCookie(videoID string, video bool, cookieFile string) []string {
 	outputTemplate := filepath.Join(config.DownloadsDir, "%(id)s.%(ext)s")
