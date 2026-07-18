@@ -1,9 +1,6 @@
 /*
  * TgMusicBot - Telegram Music Bot
- *  Copyright (c) 2025-2026 Ashok Shau
- *
- *  Licensed under GNU GPL v3
- *  See https://github.com/AshokShau/TgMusicBot
+ * Copyright (c) 2025-2026 Ashok Shau
  */
 
 package config
@@ -16,85 +13,101 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 const cookiesDr = "src/cookies"
 
-// fetchContent downloads content from Pastebin or Batbin.
+var cookieMu sync.RWMutex
+
+// fetchContent downloads cookie content.
 func fetchContent(url string) (string, error) {
 	parts := strings.Split(strings.Trim(url, "/"), "/")
 	id := parts[len(parts)-1]
 
-	var rawURL string
+	rawURL := url
 	if strings.Contains(url, "pastebin.com") {
 		rawURL = fmt.Sprintf("https://pastebin.com/raw/%s", id)
 	} else if strings.Contains(url, "batbin.me") {
 		rawURL = fmt.Sprintf("https://batbin.me/raw/%s", id)
-	} else {
-		rawURL = url
 	}
 
 	resp, err := http.Get(rawURL)
 	if err != nil {
-		return "", fmt.Errorf("failed to GET %s: %w", rawURL, err)
+		return "", err
 	}
-	defer func(Body io.ReadCloser) {
-		_ = Body.Close()
-	}(resp.Body)
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected status %d for %s", resp.StatusCode, rawURL)
+		return "", fmt.Errorf("http %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("failed to read body from %s: %w", rawURL, err)
+		return "", err
 	}
 
 	return string(body), nil
 }
 
-// saveContent saves content to a file in /tmp and returns the file path.
+// saveContent writes one cookie file.
 func saveContent(url, content string) (string, error) {
 	parts := strings.Split(strings.Trim(url, "/"), "/")
 	filename := parts[len(parts)-1]
+
 	if filename == "" {
-		filename = "file_" + strings.ReplaceAll(strings.Split(strings.ReplaceAll(url, "/", "_"), "?")[0], "#", "")
-	}
-	filename += ".txt"
-
-	filePath := filepath.Join(cookiesDr, filename)
-
-	f, err := os.Create(filePath)
-	if err != nil {
-		return "", fmt.Errorf("failed to create file %s: %w", filePath, err)
-	}
-	defer func(f *os.File) {
-		_ = f.Close()
-	}(f)
-
-	if _, err := f.WriteString(content); err != nil {
-		return "", fmt.Errorf("failed to write file %s: %w", filePath, err)
+		filename = "cookie"
 	}
 
-	return filePath, nil
+	if !strings.HasSuffix(filename, ".txt") {
+		filename += ".txt"
+	}
+
+	path := filepath.Join(cookiesDr, filename)
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		return "", err
+	}
+
+	return path, nil
 }
 
-// saveAllCookies downloads all URLs and stores paths in CookiesPath.
+// saveAllCookies downloads every cookie and refreshes CookiesPath safely.
 func saveAllCookies(urls []string) {
+	var paths []string
+
 	for _, url := range urls {
 		content, err := fetchContent(url)
 		if err != nil {
-			slog.Info("Error fetching cookies from", "url", url, "error", err)
+			slog.Warn("Cookie download failed", "url", url, "error", err)
 			continue
 		}
 
 		path, err := saveContent(url, content)
 		if err != nil {
-			slog.Info("Error saving cookies for", "url", url, "error", err)
+			slog.Warn("Cookie save failed", "url", url, "error", err)
 			continue
 		}
 
-		CookiesPath = append(CookiesPath, path)
+		paths = append(paths, path)
+		slog.Info("Cookie loaded", "file", path)
 	}
+
+	cookieMu.Lock()
+	CookiesPath = paths
+	cookieMu.Unlock()
+
+	slog.Info("Cookie pool ready", "count", len(CookiesPath))
 }
+
+// GetCookiePaths returns a thread-safe copy of all cookie paths.
+func GetCookiePaths() []string {
+	cookieMu.RLock()
+	defer cookieMu.RUnlock()
+
+	out := make([]string, len(CookiesPath))
+	copy(out, CookiesPath)
+
+	return out
+}
+

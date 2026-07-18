@@ -225,7 +225,8 @@ func (y *youTubeData) downloadWithYtDlp(videoID string, video bool) (string, err
 		return "", errors.New("videoID is empty")
 	}
 
-	ytdlpParams, cookieFile := y.buildYtdlpParams(videoID, video)
+	cookieFile := y.getCookieFile()
+ytdlpParams := y.buildYtdlpParamsWithCookie(videoID, video, cookieFile)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -238,8 +239,11 @@ func (y *youTubeData) downloadWithYtDlp(videoID string, video bool) (string, err
 		if errors.As(err, &exitErr) {
 			stderr := string(exitErr.Stderr)
 			if cookieFile != "" && strings.Contains(stderr, "Sign in to confirm you're not a bot") {
-				_ = os.Remove(cookieFile)
-			}
+	slog.Warn(
+		"YouTube rejected cookie",
+		"cookie", cookieFile,
+	)
+}
 			return "", fmt.Errorf("yt-dlp failed with exit code %d: %s", exitErr.ExitCode(), stderr)
 		}
 
@@ -264,19 +268,73 @@ func (y *youTubeData) downloadWithYtDlp(videoID string, video bool) (string, err
 
 // getCookieFile retrieves the path to a cookie file from the configured list.
 func (y *youTubeData) getCookieFile() string {
-	cookiesPath := config.CookiesPath
+	cookiesPath := config.GetCookiePaths()
+
 	if len(cookiesPath) == 0 {
 		return ""
 	}
+
 	n, err := rand.Int(rand.Reader, big.NewInt(int64(len(cookiesPath))))
 	if err != nil {
-		slog.Info("Could not generate a random number", "error", err)
+		slog.Warn("Could not generate random cookie index", "error", err)
 		return cookiesPath[0]
 	}
 
 	return cookiesPath[n.Int64()]
 }
+func (y *youTubeData) buildYtdlpParamsWithCookie(videoID string, video bool, cookieFile string) []string {
+	outputTemplate := filepath.Join(config.DownloadsDir, "%(id)s.%(ext)s")
 
+	params := []string{
+		"yt-dlp",
+		"--no-warnings",
+		"--quiet",
+		"--geo-bypass",
+		"--retries", "2",
+		"--continue",
+		"--no-part",
+		"--concurrent-fragments", "3",
+		"--socket-timeout", "10",
+		"--throttled-rate", "100K",
+		"--retry-sleep", "1",
+		"--no-write-thumbnail",
+		"--no-write-info-json",
+		"--no-embed-metadata",
+		"--no-embed-chapters",
+		"--no-embed-subs",
+		"--extractor-args", "youtube:player_js_version=actual",
+		"-o", outputTemplate,
+	}
+
+	if video {
+		params = append(params,
+			"-f",
+			"bestvideo[height<=720]+bestaudio/best[height<=720]",
+			"--merge-output-format",
+			"mp4",
+		)
+	} else {
+		params = append(params,
+			"-f",
+			"bestaudio[ext=m4a]/bestaudio",
+		)
+	}
+
+	if cookieFile != "" {
+		params = append(params, "--cookies", cookieFile)
+	} else if config.Proxy != "" {
+		params = append(params, "--proxy", config.Proxy)
+	}
+
+	params = append(
+		params,
+		"https://www.youtube.com/watch?v="+videoID,
+		"--print",
+		"after_move:filepath",
+	)
+
+	return params
+}
 // downloadWithApi downloads a track using the external API.
 func (y *youTubeData) downloadWithApi(videoID string, _ bool) (string, error) {
 	videoUrl := fmt.Sprintf("https://www.youtube.com/watch?v=%s", videoID)
