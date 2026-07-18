@@ -12,3 +12,17 @@ libntgcalls.a
 libntgcalls.so
 libtdjson.so.*
 libtdjson.so
+# binaries
+tgmusic
+
+# logs
+*.log
+
+# downloads
+database/*.mp4
+database/*.m4a
+database/*.webm
+database/*.mp3
+
+# temp
+youtube_go.txt

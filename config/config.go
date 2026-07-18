@@ -10,6 +10,7 @@ package config
 
 import (
 	"fmt"
+"time"
 	"log/slog"
 	"os"
 	"strconv"
@@ -82,12 +83,23 @@ func init() {
 	}
 
 	if len(cookiesUrl) > 0 {
-		if err := os.MkdirAll(cookiesDr, 0750); err != nil {
-			slog.Error("Failed to create temp dir for cookies", "error", err)
-			os.Exit(1)
-		}
-		go saveAllCookies(cookiesUrl)
-	}
+        if err := os.MkdirAll(cookiesDr, 0750); err != nil {
+                slog.Error("Failed to create temp dir for cookies", "error", err)
+                os.Exit(1)
+        }
+
+        go func() {
+                saveAllCookies(cookiesUrl)
+
+                ticker := time.NewTicker(30 * time.Minute)
+                defer ticker.Stop()
+
+                for range ticker.C {
+                        slog.Info("Refreshing cookie pool...")
+                        saveAllCookies(cookiesUrl)
+                }
+                }()
+        }
 }
 
 // getEnv returns the value of an environment variable or a default value if it is not set

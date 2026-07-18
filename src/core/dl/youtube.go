@@ -9,12 +9,10 @@
 package dl
 
 import (
-	"time"
-
-	"ashokshau/tgmusic/config"
-	"ashokshau/tgmusic/src/utils"
+	
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -24,6 +22,10 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
+
+	"ashokshau/tgmusic/config"
+	"ashokshau/tgmusic/src/utils"
 )
 
 // youTubeData provides an interface for fetching track and playlist information from YouTube.
@@ -34,13 +36,26 @@ type youTubeData struct {
 	Patterns map[string]*regexp.Regexp
 }
 
+type ytDlpInfo struct {
+	URL       string       `json:"url"`
+	Title     string       `json:"title"`
+	Thumbnail string       `json:"thumbnail"`
+	Duration  float64      `json:"duration"`
+	IsLive    bool         `json:"is_live"`
+	Formats   []ytFormat   `json:"formats"`
+	Entries   []ytDlpInfo  `json:"entries"`
+}
+
+type ytFormat struct {
+	URL string `json:"url"`
+}
+
 var youtubePatterns = map[string]*regexp.Regexp{
 	"youtube":   regexp.MustCompile(`(?i)^(?:https?://)?(?:www\.)?youtube\.com/.*`),
 	"youtu_be":  regexp.MustCompile(`(?i)^(?:https?://)?(?:www\.)?youtu\.be/.*`),
 	"yt_music":  regexp.MustCompile(`(?i)^(?:https?://)?music\.youtube\.com/.*`),
 	"yt_shorts": regexp.MustCompile(`(?i)^(?:https?://)?(?:www\.)?youtube\.com/shorts/.*`),
 }
-
 // newYouTubeData initializes a youTubeData instance with pre-compiled regex patterns and a cleaned query.
 func newYouTubeData(query string) *youTubeData {
 	return &youTubeData{
@@ -50,7 +65,6 @@ func newYouTubeData(query string) *youTubeData {
 		Patterns: youtubePatterns,
 	}
 }
-
 func (y *youTubeData) isValid() bool {
 	if y.Query == "" {
 		slog.Info("The query or patterns are empty.")
@@ -145,12 +159,28 @@ func (y *youTubeData) getTrack() (utils.TrackInfo, error) {
 	}
 
 	getInfo, err := y.getInfo()
+if err != nil || len(getInfo.Results) == 0 {
+
+	videoID := extractVideoID(y.Query)
+
+	if videoID != "" {
+		slog.Info("Falling back to direct YouTube ID",
+			"video_id", videoID,
+		)
+
+		return utils.TrackInfo{
+			Id:       videoID,
+			URL:      y.Query,
+			Platform: utils.YouTube,
+		}, nil
+	}
+
 	if err != nil {
 		return utils.TrackInfo{}, err
 	}
-	if len(getInfo.Results) == 0 {
-		return utils.TrackInfo{}, errors.New("no video results were found")
-	}
+
+	return utils.TrackInfo{}, errors.New("no video results were found")
+}
 
 	track := getInfo.Results[0]
 	trackInfo := utils.TrackInfo{
@@ -161,63 +191,85 @@ func (y *youTubeData) getTrack() (utils.TrackInfo, error) {
 
 	return trackInfo, nil
 }
+func (y *youTubeData) resolveLiveStream(videoID string) (string, bool, error) {
+	if videoID == "" {
+		return "", false, errors.New("videoID is empty")
+	}
 
+	cookieFile := y.getCookieFile()
+
+	args := []string{
+		"yt-dlp",
+		"--no-warnings",
+		"--no-playlist",
+		"-J",
+		"https://www.youtube.com/watch?v=" + videoID,
+	}
+
+	if cookieFile != "" {
+		args = append(args[:1], append([]string{"--cookies", cookieFile}, args[1:]...)...)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+
+	out, err := cmd.Output()
+	if err != nil {
+		return "", false, err
+	}
+
+	var info ytDlpInfo
+	if err := json.Unmarshal(out, &info); err != nil {
+		return "", false, err
+	}
+
+	if len(info.Entries) > 0 {
+		info = info.Entries[0]
+	}
+
+	stream := info.URL
+
+	if stream == "" {
+		for i := len(info.Formats) - 1; i >= 0; i-- {
+			if info.Formats[i].URL != "" {
+				stream = info.Formats[i].URL
+				break
+			}
+		}
+	}
+
+	if stream == "" {
+		return "", false, errors.New("no playable stream found")
+	}
+
+	return stream, info.IsLive, nil
+}
 // downloadTrack handles the download of a track from YouTube.
 func (y *youTubeData) downloadTrack(info utils.TrackInfo, video bool) (string, error) {
+	// Try direct resolver first
+	streamURL, isLive, err := y.resolveLiveStream(info.Id)
+	if err == nil && isLive {
+		slog.Info("Detected YouTube Live stream",
+			"video_id", info.Id,
+			"url", streamURL,
+		)
+		return streamURL, nil
+	}
+
+	// Existing API downloader for audio
 	if !video && y.ApiUrl != "" && y.APIKey != "" {
 		if filePath, err := y.downloadWithApi(info.Id, video); err == nil {
 			return filePath, nil
 		}
 	}
 
+	// Existing yt-dlp download fallback
 	return y.downloadWithYtDlp(info.Id, video)
 }
 
-// buildYtdlpParams constructs the command-line parameters for yt-dlp to download media.
-func (y *youTubeData) buildYtdlpParams(videoID string, video bool) ([]string, string) {
-	outputTemplate := filepath.Join(config.DownloadsDir, "%(id)s.%(ext)s")
-	var cookieFile string
 
-	params := []string{
-		"yt-dlp",
-		"--no-warnings",
-		"--quiet",
-		"--geo-bypass",
-		"--retries", "2",
-		"--continue",
-		"--no-part",
-		"--concurrent-fragments", "3",
-		"--socket-timeout", "10",
-		"--throttled-rate", "100K",
-		"--retry-sleep", "1",
-		"--no-write-thumbnail",
-		"--no-write-info-json",
-		"--no-embed-metadata",
-		"--no-embed-chapters",
-		"--no-embed-subs",
-		"--extractor-args", "youtube:player_js_version=actual",
-		"-o", outputTemplate,
-	}
-
-	if video {
-		formatSelector := "bestvideo[height<=720]+bestaudio/best[height<=720]"
-		params = append(params, "-f", formatSelector, "--merge-output-format", "mp4")
-	} else {
-		params = append(params, "-f", "bestaudio[ext=m4a]/bestaudio")
-	}
-
-	cookieFile = y.getCookieFile()
-	if cookieFile != "" {
-		params = append(params, "--cookies", cookieFile)
-	} else if config.Proxy != "" {
-		params = append(params, "--proxy", config.Proxy)
-	}
-
-	videoURL := "https://www.youtube.com/watch?v=" + videoID
-	params = append(params, videoURL, "--print", "after_move:filepath")
-
-	return params, cookieFile
-}
 
 // downloadWithYtDlp downloads media from YouTube using the yt-dlp command-line tool.
 func (y *youTubeData) downloadWithYtDlp(videoID string, video bool) (string, error) {
