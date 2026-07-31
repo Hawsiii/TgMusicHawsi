@@ -90,7 +90,7 @@
     "API_URL": {
       "description": "API URL for external services.",
       "required": false,
-      "value": "https://tgmusic.fallenapi.fun"
+      "value": ""
     },
     "API_KEY": {
       "description": "API key for external services. Get you own from @FallenApiBot -> /apikey",

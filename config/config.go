@@ -27,7 +27,7 @@ var (
 	SessionType         = getEnv("SESSION_TYPE", "pyrogram")
 	MongoUri            = os.Getenv("MONGO_URI")
 	DbName              = getEnv("DB_NAME", "Anon")
-	ApiUrl              = getEnv("API_URL", "https://api.onegrab.fun")
+	ApiUrl              = getEnv("API_URL", "")
 	ApiKey              = os.Getenv("API_KEY")
 	PipedApiUrl         = getEnv("PIPED_API_URL", "https://pipedapi.kavin.rocks")
 	OwnerId             = getEnvInt64("OWNER_ID", 0)

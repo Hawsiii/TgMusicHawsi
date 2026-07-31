@@ -150,8 +150,17 @@ func (y *youTubeData) getTrack() (utils.TrackInfo, error) {
 		return utils.TrackInfo{}, errors.New("the provided URL is invalid or the platform is not supported")
 	}
 
+	videoID := extractVideoID(y.Query)
+	if videoID == "" {
+		return utils.TrackInfo{}, errors.New("invalid YouTube URL")
+	}
+
 	if y.ApiUrl != "" && y.APIKey != "" {
-		return newApiData(y.Query).getTrack()
+		return utils.TrackInfo{
+			Id:       videoID,
+			URL:      strings.TrimSpace(y.Query),
+			Platform: utils.YouTube,
+		}, nil
 	}
 
 	getInfo, err := y.getInfo()
@@ -345,12 +354,18 @@ func (y *youTubeData) buildYtdlpParams(videoID string, video bool) []string {
 }
 
 // downloadWithApi downloads a track using the external API.
-func (y *youTubeData) downloadWithApi(videoID string, _ bool) (string, error) {
+func (y *youTubeData) downloadWithApi(videoID string, video bool) (string, error) {
 	videoUrl := fmt.Sprintf("https://www.youtube.com/watch?v=%s", videoID)
-	api := newApiData(videoUrl)
-	track, err := api.getTrack()
-	if err != nil {
-		return "", err
+	a := newApiData(videoUrl)
+	if a.ApiUrl == "" || a.APIKey == "" {
+		return "", errors.New("invalid API configuration")
+	}
+
+	track := utils.TrackInfo{
+		Id:       videoID,
+		URL:      videoUrl,
+		Platform: utils.YouTube,
+		CdnURL:   a.buildDownloadURL(video),
 	}
 
 	down, err := newDownload(track)
