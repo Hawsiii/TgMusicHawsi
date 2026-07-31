@@ -105,7 +105,6 @@ func (c *TelegramCalls) playMedia(bot *td.Client, chatID int64, filePath string,
 	}
 
 	if err := c.joinAssistant(bot, chatID, call, index); err != nil {
-		cache.ChatCache.ClearChat(chatID)
 		return err
 	}
 
@@ -113,7 +112,6 @@ func (c *TelegramCalls) playMedia(bot *td.Client, chatID int64, filePath string,
 
 	mediaDesc := getMediaDescription(filePath, video, ffmpegParameters)
 	if err := call.Play(context.Background(), chatID, mediaDesc); err != nil {
-		cache.ChatCache.ClearChat(chatID)
 		return err
 	}
 
