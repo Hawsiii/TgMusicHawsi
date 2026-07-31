@@ -114,10 +114,6 @@
       "description": "Proxy URL for the bot.",
       "required": false
     },
-    "COOKIES_URL": {
-      "description": "URL to a cookies file for yt-dlp. (vai batbin.me)",
-      "required": false
-    },
     "SUPPORT_GROUP": {
       "description": "Link to the support group.",
       "required": false,

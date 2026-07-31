@@ -10,7 +10,6 @@ package config
 
 import (
 	"fmt"
-"time"
 	"log/slog"
 	"os"
 	"strconv"
@@ -30,6 +29,7 @@ var (
 	DbName              = getEnv("DB_NAME", "Anon")
 	ApiUrl              = getEnv("API_URL", "https://api.onegrab.fun")
 	ApiKey              = os.Getenv("API_KEY")
+	PipedApiUrl         = getEnv("PIPED_API_URL", "https://pipedapi.kavin.rocks")
 	OwnerId             = getEnvInt64("OWNER_ID", 0)
 	LoggerId            = getEnvInt64("LOGGER_ID", 0)
 	Proxy               = os.Getenv("PROXY")
@@ -44,9 +44,7 @@ var (
 	AutoLeave           = getEnvBool("AUTO_LEAVE", false)
 	EnableVideoPlayback = getEnvBool("ENABLE_VPLAY", true)
 
-	DEVS        []int64
-	CookiesPath []string
-	cookiesUrl  = processCookieURLs(os.Getenv("COOKIES_URL"))
+	DEVS []int64
 )
 
 func init() {
@@ -82,24 +80,6 @@ func init() {
 		os.Exit(1)
 	}
 
-	if len(cookiesUrl) > 0 {
-        if err := os.MkdirAll(cookiesDr, 0750); err != nil {
-                slog.Error("Failed to create temp dir for cookies", "error", err)
-                os.Exit(1)
-        }
-
-        go func() {
-                saveAllCookies(cookiesUrl)
-
-                ticker := time.NewTicker(30 * time.Minute)
-                defer ticker.Stop()
-
-                for range ticker.C {
-                        slog.Info("Refreshing cookie pool...")
-                        saveAllCookies(cookiesUrl)
-                }
-                }()
-        }
 }
 
 // getEnv returns the value of an environment variable or a default value if it is not set
@@ -150,21 +130,6 @@ func getSessionStrings(prefix string, max int) []string {
 	}
 
 	return sessions
-}
-
-// processCookieURLs processes comma-separated cookie URLs
-func processCookieURLs(urls string) []string {
-	if urls == "" {
-		return nil
-	}
-	var result []string
-	for _, url := range strings.Split(urls, ",") {
-		url = strings.TrimSpace(url)
-		if url != "" {
-			result = append(result, url)
-		}
-	}
-	return result
 }
 
 // containsInt checks if a slice contains a specific int64 value
@@ -219,6 +184,7 @@ func isValidService(service string) bool {
 	validServices := map[string]bool{
 		"youtube": true,
 		"spotify": true,
+		"piped":   true,
 	}
 	return validServices[strings.ToLower(service)]
 }

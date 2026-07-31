@@ -15,13 +15,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 )
 
 const cookiesDr = "src/cookies"
-
-var cookieMu sync.RWMutex
 
 func fetchContent(url string) (string, error) {
 	url = strings.TrimSpace(url)
@@ -226,8 +223,6 @@ func saveContent(url, content string) (string, error) {
 }
 
 func saveAllCookies(urls []string) {
-	var paths []string
-
 	for _, url := range urls {
 		content, err := fetchContent(url)
 		if err != nil {
@@ -241,22 +236,6 @@ func saveAllCookies(urls []string) {
 			continue
 		}
 
-		paths = append(paths, path)
 		slog.Info("Cookie loaded", "file", path)
 	}
-
-	cookieMu.Lock()
-	CookiesPath = paths
-	cookieMu.Unlock()
-
-	slog.Info("Cookie pool ready", "count", len(CookiesPath))
-}
-
-func GetCookiePaths() []string {
-	cookieMu.RLock()
-	defer cookieMu.RUnlock()
-
-	out := make([]string, len(CookiesPath))
-	copy(out, CookiesPath)
-	return out
 }

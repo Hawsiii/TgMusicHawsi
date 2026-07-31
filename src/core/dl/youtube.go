@@ -9,14 +9,11 @@
 package dl
 
 import (
-	
 	"context"
-	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
-	"math/big"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -37,13 +34,13 @@ type youTubeData struct {
 }
 
 type ytDlpInfo struct {
-	URL       string       `json:"url"`
-	Title     string       `json:"title"`
-	Thumbnail string       `json:"thumbnail"`
-	Duration  float64      `json:"duration"`
-	IsLive    bool         `json:"is_live"`
-	Formats   []ytFormat   `json:"formats"`
-	Entries   []ytDlpInfo  `json:"entries"`
+	URL       string      `json:"url"`
+	Title     string      `json:"title"`
+	Thumbnail string      `json:"thumbnail"`
+	Duration  float64     `json:"duration"`
+	IsLive    bool        `json:"is_live"`
+	Formats   []ytFormat  `json:"formats"`
+	Entries   []ytDlpInfo `json:"entries"`
 }
 
 type ytFormat struct {
@@ -56,6 +53,7 @@ var youtubePatterns = map[string]*regexp.Regexp{
 	"yt_music":  regexp.MustCompile(`(?i)^(?:https?://)?music\.youtube\.com/.*`),
 	"yt_shorts": regexp.MustCompile(`(?i)^(?:https?://)?(?:www\.)?youtube\.com/shorts/.*`),
 }
+
 // newYouTubeData initializes a youTubeData instance with pre-compiled regex patterns and a cleaned query.
 func newYouTubeData(query string) *youTubeData {
 	return &youTubeData{
@@ -159,28 +157,28 @@ func (y *youTubeData) getTrack() (utils.TrackInfo, error) {
 	}
 
 	getInfo, err := y.getInfo()
-if err != nil || len(getInfo.Results) == 0 {
+	if err != nil || len(getInfo.Results) == 0 {
 
-	videoID := extractVideoID(y.Query)
+		videoID := extractVideoID(y.Query)
 
-	if videoID != "" {
-		slog.Info("Falling back to direct YouTube ID",
-			"video_id", videoID,
-		)
+		if videoID != "" {
+			slog.Info("Falling back to direct YouTube ID",
+				"video_id", videoID,
+			)
 
-		return utils.TrackInfo{
-			Id:       videoID,
-			URL:      y.Query,
-			Platform: utils.YouTube,
-		}, nil
+			return utils.TrackInfo{
+				Id:       videoID,
+				URL:      y.Query,
+				Platform: utils.YouTube,
+			}, nil
+		}
+
+		if err != nil {
+			return utils.TrackInfo{}, err
+		}
+
+		return utils.TrackInfo{}, errors.New("no video results were found")
 	}
-
-	if err != nil {
-		return utils.TrackInfo{}, err
-	}
-
-	return utils.TrackInfo{}, errors.New("no video results were found")
-}
 
 	track := getInfo.Results[0]
 	trackInfo := utils.TrackInfo{
@@ -196,8 +194,6 @@ func (y *youTubeData) resolveLiveStream(videoID string) (string, bool, error) {
 		return "", false, errors.New("videoID is empty")
 	}
 
-	cookieFile := y.getCookieFile()
-
 	args := []string{
 		"yt-dlp",
 		"--no-warnings",
@@ -206,13 +202,9 @@ func (y *youTubeData) resolveLiveStream(videoID string) (string, bool, error) {
 		"https://www.youtube.com/watch?v=" + videoID,
 	}
 
-	if cookieFile != "" {
-		args = append(args[:1], append([]string{"--cookies", cookieFile}, args[1:]...)...)
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-slog.Info("Running yt-dlp resolver", "args", args)
+	slog.Info("Running yt-dlp resolver", "args", args)
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 
 	out, err := cmd.Output()
@@ -246,30 +238,17 @@ slog.Info("Running yt-dlp resolver", "args", args)
 
 	return stream, info.IsLive, nil
 }
+
 // downloadTrack handles the download of a track from YouTube.
 func (y *youTubeData) downloadTrack(info utils.TrackInfo, video bool) (string, error) {
-	// Try direct resolver first
-	streamURL, isLive, err := y.resolveLiveStream(info.Id)
-	if err == nil && isLive {
-		slog.Info("Detected YouTube Live stream",
-			"video_id", info.Id,
-			"url", streamURL,
-		)
-		return streamURL, nil
-	}
-
-	// Existing API downloader for audio
-	if !video && y.ApiUrl != "" && y.APIKey != "" {
+	if y.ApiUrl != "" && y.APIKey != "" {
 		if filePath, err := y.downloadWithApi(info.Id, video); err == nil {
 			return filePath, nil
 		}
 	}
 
-	// Existing yt-dlp download fallback
 	return y.downloadWithYtDlp(info.Id, video)
 }
-
-
 
 // downloadWithYtDlp downloads media from YouTube using the yt-dlp command-line tool.
 func (y *youTubeData) downloadWithYtDlp(videoID string, video bool) (string, error) {
@@ -277,12 +256,11 @@ func (y *youTubeData) downloadWithYtDlp(videoID string, video bool) (string, err
 		return "", errors.New("videoID is empty")
 	}
 
-	cookieFile := y.getCookieFile()
-ytdlpParams := y.buildYtdlpParamsWithCookie(videoID, video, cookieFile)
+	ytdlpParams := y.buildYtdlpParams(videoID, video)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-slog.Info("Running yt-dlp", "args", ytdlpParams)
+	slog.Info("Running yt-dlp", "args", ytdlpParams)
 	cmd := exec.CommandContext(ctx, ytdlpParams[0], ytdlpParams[1:]...)
 
 	output, err := cmd.Output()
@@ -290,12 +268,6 @@ slog.Info("Running yt-dlp", "args", ytdlpParams)
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			stderr := string(exitErr.Stderr)
-			if cookieFile != "" && strings.Contains(stderr, "Sign in to confirm you're not a bot") {
-	slog.Warn(
-		"YouTube rejected cookie",
-		"cookie", cookieFile,
-	)
-}
 			return "", fmt.Errorf("yt-dlp failed with exit code %d: %s", exitErr.ExitCode(), stderr)
 		}
 
@@ -318,29 +290,7 @@ slog.Info("Running yt-dlp", "args", ytdlpParams)
 	return downloadedPathStr, nil
 }
 
-// getCookieFile retrieves the path to a cookie file from the configured list.
-func (y *youTubeData) getCookieFile() string {
-	cookiesPath := config.GetCookiePaths()
-
-	if len(cookiesPath) == 0 {
-		return ""
-	}
-
-	n, err := rand.Int(rand.Reader, big.NewInt(int64(len(cookiesPath))))
-	if err != nil {
-		slog.Warn("Could not generate random cookie index", "error", err)
-
-		slog.Info("Using cookie", "file", cookiesPath[0])
-		return cookiesPath[0]
-	}
-
-	cookie := cookiesPath[n.Int64()]
-
-	slog.Info("Using cookie", "file", cookie)
-
-	return cookie
-}
-func (y *youTubeData) buildYtdlpParamsWithCookie(videoID string, video bool, cookieFile string) []string {
+func (y *youTubeData) buildYtdlpParams(videoID string, video bool) []string {
 	outputTemplate := filepath.Join(config.DownloadsDir, "%(id)s.%(ext)s")
 
 	params := []string{
@@ -378,9 +328,7 @@ func (y *youTubeData) buildYtdlpParamsWithCookie(videoID string, video bool, coo
 		)
 	}
 
-	if cookieFile != "" {
-		params = append(params, "--cookies", cookieFile)
-	} else if config.Proxy != "" {
+	if config.Proxy != "" {
 		params = append(params, "--proxy", config.Proxy)
 	}
 
@@ -393,6 +341,7 @@ func (y *youTubeData) buildYtdlpParamsWithCookie(videoID string, video bool, coo
 
 	return params
 }
+
 // downloadWithApi downloads a track using the external API.
 func (y *youTubeData) downloadWithApi(videoID string, _ bool) (string, error) {
 	videoUrl := fmt.Sprintf("https://www.youtube.com/watch?v=%s", videoID)

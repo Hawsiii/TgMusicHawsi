@@ -137,7 +137,7 @@ The bot is configured via environment variables. See `sample.env` for all option
 | `LOGGER_ID`           | Group chat ID for logs                    |    ❌     |
 | `SONG_DURATION_LIMIT` | Max song duration in seconds              |    ❌     |
 | `API_KEY`             | Your API key                              |    ❌     |
-| `COOKIES_URL`         | YouTube cookies URL via https://batbin.me |    ❌     |
+| `API_URL`             | Your Shruti API base URL                  |    ❌     |
 
 </details>
 
