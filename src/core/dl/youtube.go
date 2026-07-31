@@ -198,8 +198,14 @@ func (y *youTubeData) resolveLiveStream(videoID string) (string, bool, error) {
 		"yt-dlp",
 		"--no-warnings",
 		"--no-config",
+		"--no-config-locations",
 		"--no-cookies",
+		"--no-cookies-from-browser",
+		"--no-cache-dir",
 		"--quiet",
+		"--geo-bypass",
+		"--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+		"--add-header", "Accept-Language: en-US,en;q=0.9",
 		"--no-playlist",
 		"-J",
 		"https://www.youtube.com/watch?v=" + videoID,
@@ -271,6 +277,9 @@ func (y *youTubeData) downloadWithYtDlp(videoID string, video bool) (string, err
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			stderr := string(exitErr.Stderr)
+			if strings.Contains(stderr, "Sign in to confirm you’re not a bot") || strings.Contains(stderr, "LOGIN_REQUIRED") || strings.Contains(stderr, "use --cookies") {
+				return "", fmt.Errorf("yt-dlp failed because this YouTube video requires authentication and cannot be downloaded without cookies: %s", stderr)
+			}
 			return "", fmt.Errorf("yt-dlp failed with exit code %d: %s", exitErr.ExitCode(), stderr)
 		}
 
@@ -300,7 +309,10 @@ func (y *youTubeData) buildYtdlpParams(videoID string, video bool) []string {
 		"yt-dlp",
 		"--no-warnings",
 		"--no-config",
+		"--no-config-locations",
 		"--no-cookies",
+		"--no-cookies-from-browser",
+		"--no-cache-dir",
 		"--quiet",
 		"--geo-bypass",
 		"--retries", "2",
@@ -310,6 +322,8 @@ func (y *youTubeData) buildYtdlpParams(videoID string, video bool) []string {
 		"--socket-timeout", "10",
 		"--throttled-rate", "100K",
 		"--retry-sleep", "1",
+		"--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+		"--add-header", "Accept-Language: en-US,en;q=0.9",
 		"--no-write-thumbnail",
 		"--no-write-info-json",
 		"--no-embed-metadata",

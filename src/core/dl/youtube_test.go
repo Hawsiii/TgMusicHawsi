@@ -32,6 +32,33 @@ func TestBuildYtdlpParamsDoesNotUseCookies(t *testing.T) {
 		t.Fatalf("expected yt-dlp params to include --no-cookies, got %v", params)
 	}
 
+	hasNoConfigLocations := false
+	hasNoCookiesFromBrowser := false
+	hasNoCacheDir := false
+	for _, arg := range params {
+		if arg == "--no-config-locations" {
+			hasNoConfigLocations = true
+		}
+		if arg == "--no-cookies-from-browser" {
+			hasNoCookiesFromBrowser = true
+		}
+		if arg == "--no-cache-dir" {
+			hasNoCacheDir = true
+		}
+	}
+
+	if !hasNoConfigLocations {
+		t.Fatalf("expected yt-dlp params to include --no-config-locations, got %v", params)
+	}
+
+	if !hasNoCookiesFromBrowser {
+		t.Fatalf("expected yt-dlp params to include --no-cookies-from-browser, got %v", params)
+	}
+
+	if !hasNoCacheDir {
+		t.Fatalf("expected yt-dlp params to include --no-cache-dir, got %v", params)
+	}
+
 	if len(params) == 0 {
 		t.Fatal("expected yt-dlp params to be generated")
 	}
