@@ -29,6 +29,7 @@ var (
 	DbName              = getEnv("DB_NAME", "Anon")
 	ApiUrl              = getEnv("API_URL", "https://api.onegrab.fun")
 	ApiKey              = os.Getenv("API_KEY")
+	PipedApiUrl         = getEnv("PIPED_API_URL", "https://pipedapi.kavin.rocks")
 	OwnerId             = getEnvInt64("OWNER_ID", 0)
 	LoggerId            = getEnvInt64("LOGGER_ID", 0)
 	Proxy               = os.Getenv("PROXY")
@@ -183,6 +184,7 @@ func isValidService(service string) bool {
 	validServices := map[string]bool{
 		"youtube": true,
 		"spotify": true,
+		"piped":   true,
 	}
 	return validServices[strings.ToLower(service)]
 }

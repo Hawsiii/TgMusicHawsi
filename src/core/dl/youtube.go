@@ -151,9 +151,7 @@ func (y *youTubeData) getTrack() (utils.TrackInfo, error) {
 	}
 
 	if y.ApiUrl != "" && y.APIKey != "" {
-		if trackInfo, err := newApiData(y.Query).getTrack(); err == nil {
-			return trackInfo, nil
-		}
+		return newApiData(y.Query).getTrack()
 	}
 
 	getInfo, err := y.getInfo()
@@ -197,15 +195,6 @@ func (y *youTubeData) resolveLiveStream(videoID string) (string, bool, error) {
 	args := []string{
 		"yt-dlp",
 		"--no-warnings",
-		"--no-config",
-		"--no-config-locations",
-		"--no-cookies",
-		"--no-cookies-from-browser",
-		"--no-cache-dir",
-		"--quiet",
-		"--geo-bypass",
-		"--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-		"--add-header", "Accept-Language: en-US,en;q=0.9",
 		"--no-playlist",
 		"-J",
 		"https://www.youtube.com/watch?v=" + videoID,
@@ -251,9 +240,13 @@ func (y *youTubeData) resolveLiveStream(videoID string) (string, bool, error) {
 // downloadTrack handles the download of a track from YouTube.
 func (y *youTubeData) downloadTrack(info utils.TrackInfo, video bool) (string, error) {
 	if y.ApiUrl != "" && y.APIKey != "" {
-		if filePath, err := y.downloadWithApi(info.Id, video); err == nil {
-			return filePath, nil
+		filePath, err := y.downloadWithApi(info.Id, video)
+		if err != nil {
+			slog.Warn("YouTube API download failed", "video_id", info.Id, "error", err)
+			return "", err
 		}
+
+		return filePath, nil
 	}
 
 	return y.downloadWithYtDlp(info.Id, video)
@@ -277,9 +270,6 @@ func (y *youTubeData) downloadWithYtDlp(videoID string, video bool) (string, err
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			stderr := string(exitErr.Stderr)
-			if strings.Contains(stderr, "Sign in to confirm you’re not a bot") || strings.Contains(stderr, "LOGIN_REQUIRED") || strings.Contains(stderr, "use --cookies") {
-				return "", fmt.Errorf("yt-dlp failed because this YouTube video requires authentication and cannot be downloaded without cookies: %s", stderr)
-			}
 			return "", fmt.Errorf("yt-dlp failed with exit code %d: %s", exitErr.ExitCode(), stderr)
 		}
 
@@ -308,11 +298,6 @@ func (y *youTubeData) buildYtdlpParams(videoID string, video bool) []string {
 	params := []string{
 		"yt-dlp",
 		"--no-warnings",
-		"--no-config",
-		"--no-config-locations",
-		"--no-cookies",
-		"--no-cookies-from-browser",
-		"--no-cache-dir",
 		"--quiet",
 		"--geo-bypass",
 		"--retries", "2",
@@ -322,8 +307,6 @@ func (y *youTubeData) buildYtdlpParams(videoID string, video bool) []string {
 		"--socket-timeout", "10",
 		"--throttled-rate", "100K",
 		"--retry-sleep", "1",
-		"--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-		"--add-header", "Accept-Language: en-US,en;q=0.9",
 		"--no-write-thumbnail",
 		"--no-write-info-json",
 		"--no-embed-metadata",
