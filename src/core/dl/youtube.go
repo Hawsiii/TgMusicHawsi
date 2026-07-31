@@ -197,6 +197,9 @@ func (y *youTubeData) resolveLiveStream(videoID string) (string, bool, error) {
 	args := []string{
 		"yt-dlp",
 		"--no-warnings",
+		"--no-config",
+		"--no-cookies",
+		"--quiet",
 		"--no-playlist",
 		"-J",
 		"https://www.youtube.com/watch?v=" + videoID,
@@ -296,6 +299,8 @@ func (y *youTubeData) buildYtdlpParams(videoID string, video bool) []string {
 	params := []string{
 		"yt-dlp",
 		"--no-warnings",
+		"--no-config",
+		"--no-cookies",
 		"--quiet",
 		"--geo-bypass",
 		"--retries", "2",
