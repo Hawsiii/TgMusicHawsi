@@ -4,6 +4,7 @@ import (
 	"ashokshau/tgmusic/src/vc/ntgcalls"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -17,7 +18,7 @@ func getMediaDescription(filePath string, isVideo bool, ffmpegParameters string)
 		ChannelCount: 2,
 	}
 
-	quotedPath := fmt.Sprintf("\"%s\"", filePath)
+	quotedPath := strconv.Quote(filePath)
 	isURL := isURLRegex.MatchString(filePath)
 
 	var audioCmd strings.Builder
