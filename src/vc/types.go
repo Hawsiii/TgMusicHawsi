@@ -30,6 +30,8 @@ type TelegramCalls struct {
 	clients     map[int]*tg.Client
 	statusCache *cache.Cache[td.ChatMemberStatus]
 	inviteCache *cache.Cache[string]
+
+	replacing map[int64]bool
 }
 
 var (
@@ -45,9 +47,29 @@ func getCalls() *TelegramCalls {
 			clients:     make(map[int]*tg.Client),
 			statusCache: cache.NewCache[td.ChatMemberStatus](2 * time.Hour),
 			inviteCache: cache.NewCache[string](2 * time.Hour),
+
+			replacing: make(map[int64]bool),
 		}
 	})
 	return instance
+}
+
+func (c *TelegramCalls) setReplacing(chatID int64, v bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if v {
+		c.replacing[chatID] = true
+	} else {
+		delete(c.replacing, chatID)
+	}
+}
+
+func (c *TelegramCalls) isReplacing(chatID int64) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.replacing[chatID]
 }
 
 // Calls is the singleton instance of TelegramCalls, initialized lazily.

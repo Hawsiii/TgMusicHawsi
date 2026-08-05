@@ -26,3 +26,9 @@ database/*.mp3
 
 # temp
 youtube_go.txt
+
+audit/
+playback_fix/
+*.zip
+cmd.go.txt
+repo_tree.txt

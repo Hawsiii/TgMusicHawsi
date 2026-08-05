@@ -260,6 +260,9 @@ func (c *TelegramCalls) SeekStream(bot *td.Client, chatID int64, filePath string
 		ffmpegParams = fmt.Sprintf("-ss %d -to %d", toSeek, duration)
 	}
 
+	c.setReplacing(chatID, true)
+	defer c.setReplacing(chatID, false)
+
 	return c.PlayMedia(bot, chatID, filePath, isVideo, ffmpegParams)
 }
 
@@ -300,6 +303,11 @@ func (c *TelegramCalls) RegisterHandlers(client *td.Client) {
 	for _, call := range c.assistants {
 		call.OnStreamEnd(func(chatID int64, streamType ntgcalls.StreamType, device ntgcalls.StreamDevice) {
 			if streamType == ntgcalls.VideoStream {
+				return
+			}
+
+			if c.isReplacing(chatID) {
+				call.App.Logger.Infof("[OnStreamEnd] Ignoring stream end while replacing media")
 				return
 			}
 
