@@ -56,8 +56,11 @@ func (d *download) Process() (string, error) {
 
 // processDirectDL manages direct downloads and includes improved error handling.
 func (d *download) processDirectDL() (string, error) {
-	// No need to download (ntgcalls can play with url)
-	return d.Track.CdnURL, nil
+	localPath, err := downloadFile(d.Track.CdnURL, "", false)
+	if err != nil {
+		return "", err
+	}
+	return localPath, nil
 }
 
 var (

@@ -374,5 +374,11 @@ func (y *youTubeData) downloadWithApi(videoID string, video bool) (string, error
 		return "", err
 	}
 
-	return down.Process()
+	localPath, err := down.Process()
+	if err == nil {
+		return localPath, nil
+	}
+
+	slog.Warn("API download failed, falling back to yt-dlp", "video_id", videoID, "error", err)
+	return y.downloadWithYtDlp(videoID, video)
 }
