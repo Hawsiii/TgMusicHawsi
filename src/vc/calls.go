@@ -36,6 +36,7 @@ import (
 	"math/big"
 	"os"
 	"strings"
+	"time"
 
 	td "github.com/AshokShau/gotdbot"
 )
@@ -261,7 +262,11 @@ func (c *TelegramCalls) SeekStream(bot *td.Client, chatID int64, filePath string
 	}
 
 	c.setReplacing(chatID, true)
-	defer c.setReplacing(chatID, false)
+	// Keep the replacing flag until the stream-end callback consumes it,
+	// or clear it after a short timeout to avoid stale state.
+	time.AfterFunc(5*time.Second, func() {
+		c.setReplacing(chatID, false)
+	})
 
 	return c.PlayMedia(bot, chatID, filePath, isVideo, ffmpegParams)
 }
@@ -307,6 +312,7 @@ func (c *TelegramCalls) RegisterHandlers(client *td.Client) {
 			}
 
 			if c.isReplacing(chatID) {
+				c.setReplacing(chatID, false)
 				call.App.Logger.Infof("[OnStreamEnd] Ignoring stream end while replacing media")
 				return
 			}
