@@ -9,17 +9,18 @@
 package dl
 
 import (
-	"time"
-
-	"ashokshau/tgmusic/src/utils"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
+
+	"ashokshau/tgmusic/src/utils"
 )
 
 type directLink struct {
@@ -121,5 +122,10 @@ func (d *directLink) getTrack() (utils.TrackInfo, error) {
 }
 
 func (d *directLink) downloadTrack(_ utils.TrackInfo, _ bool) (string, error) {
-	return d.query, nil
+	localPath, err := downloadFile(d.query, "", false)
+	if err != nil {
+		slog.Warn("Direct link download failed, falling back to remote stream", "url", d.query, "error", err)
+		return d.query, nil
+	}
+	return localPath, nil
 }
