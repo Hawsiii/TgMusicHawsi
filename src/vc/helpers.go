@@ -42,6 +42,13 @@ func (c *TelegramCalls) downloadAndPrepareSong(bot *td.Client, song *utils.Cache
 
 // PlayNext plays the next song in the queue, handles looping, and notifies the chat when the queue is finished.
 func (c *TelegramCalls) PlayNext(bot *td.Client, chatID int64) error {
+	logger.Warn(
+		"[PlayNext]",
+		"chat", chatID,
+		"current", cache.ChatCache.GetPlayingTrack(chatID) != nil,
+		"next", cache.ChatCache.GetUpcomingTrack(chatID) != nil,
+	)
+
 	loop := cache.ChatCache.GetLoopCount(chatID)
 	if loop > 0 {
 		cache.ChatCache.SetLoopCount(chatID, loop-1)

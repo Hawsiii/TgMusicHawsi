@@ -109,7 +109,8 @@ func (c *TelegramCalls) playSong(bot *td.Client, chatID int64, song *utils.Cache
 	}
 
 	if err = c.downloadAndPrepareSong(bot, song, reply); err != nil {
-		return c.PlayNext(bot, chatID)
+		logger.Error("[playSong] Download failed", "error", err)
+		return err
 	}
 
 	if err = c.PlayMedia(bot, chatID, song.FilePath, song.IsVideo, ""); err != nil {
