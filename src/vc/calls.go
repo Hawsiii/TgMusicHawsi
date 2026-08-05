@@ -34,7 +34,6 @@ import (
 	"html"
 	"log/slog"
 	"math/big"
-	"os"
 	"strings"
 	"time"
 
@@ -250,16 +249,7 @@ func (c *TelegramCalls) SeekStream(bot *td.Client, chatID int64, filePath string
 		return errors.New("invalid seek position or duration. The position must be positive and the duration must be greater than 0")
 	}
 
-	isURL := urlRegex.MatchString(filePath)
-	_, err := os.Stat(filePath)
-	isFile := err == nil
-
-	var ffmpegParams string
-	if isURL || !isFile {
-		ffmpegParams = fmt.Sprintf("-ss %d -i %s -to %d", toSeek, filePath, duration)
-	} else {
-		ffmpegParams = fmt.Sprintf("-ss %d -to %d", toSeek, duration)
-	}
+	ffmpegParams := fmt.Sprintf("-ss %d -to %d", toSeek, duration)
 
 	c.setReplacing(chatID, true)
 	// Keep the replacing flag until the stream-end callback consumes it,
