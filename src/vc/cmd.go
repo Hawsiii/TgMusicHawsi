@@ -44,7 +44,8 @@ func getMediaDescription(filePath string, isVideo bool, ffmpegParameters string)
 		audioCmd.WriteString(filterFlags + " ")
 	}
 
-	audioCmd.WriteString(fmt.Sprintf("-f s16le -ac %d -ar %d -v quiet pipe:1",
+	audioCmd.WriteString(fmt.Sprintf(
+		"-f s16le -ac %d -ar %d -loglevel error pipe:1",
 		audioDescription.ChannelCount,
 		audioDescription.SampleRate,
 	))
@@ -90,7 +91,7 @@ func getMediaDescription(filePath string, isVideo bool, ffmpegParameters string)
 	}
 
 	var videoCmd strings.Builder
-	videoCmd.WriteString("ffmpeg ")
+	videoCmd.WriteString("ffmpeg -hide_banner ")
 
 	if isURL {
 		videoCmd.WriteString("-reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 2 ")
@@ -105,7 +106,8 @@ func getMediaDescription(filePath string, isVideo bool, ffmpegParameters string)
 		videoCmd.WriteString(filterFlags + " ")
 	}
 
-	videoCmd.WriteString(fmt.Sprintf("-f rawvideo -r %d -pix_fmt yuv420p -vf scale=%d:%d -v quiet pipe:1",
+	videoCmd.WriteString(fmt.Sprintf(
+		"-f rawvideo -r %d -pix_fmt yuv420p -vf \"scale=%d:%d:flags=lanczos:force_original_aspect_ratio=decrease\" -loglevel error pipe:1",
 		videoDescription.Fps,
 		videoDescription.Width,
 		videoDescription.Height,
