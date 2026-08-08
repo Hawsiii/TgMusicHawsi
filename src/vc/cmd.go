@@ -58,31 +58,8 @@ func getMediaDescription(filePath string, isVideo bool, ffmpegParameters string)
 		}
 	}
 
-	originalWidth, originalHeight := getVideoDimensions(filePath)
-
 	width := 1280
 	height := 720
-
-	if originalWidth > 0 && originalHeight > 0 {
-		ratio := float64(originalWidth) / float64(originalHeight)
-		newW := min(originalWidth, width)
-		newH := int(float64(newW) / ratio)
-
-		if newH > height {
-			newH = height
-			newW = int(float64(newH) * ratio)
-		}
-
-		if newW%2 != 0 {
-			newW--
-		}
-		if newH%2 != 0 {
-			newH--
-		}
-
-		width = newW
-		height = newH
-	}
 
 	videoDescription := &ntgcalls.VideoDescription{
 		MediaSource: ntgcalls.MediaSourceShell,
@@ -90,6 +67,19 @@ func getMediaDescription(filePath string, isVideo bool, ffmpegParameters string)
 		Height:      int16(height),
 		Fps:         30,
 	}
+
+	var scaleFilter string
+	scaleFilter = fmt.Sprintf(
+		"scale='if(gt(a,%d/%d),min(iw,%d),-2)':'if(gt(a,%d/%d),-2,min(ih,%d))':flags=lanczos,pad=%d:%d:(ow-iw)/2:(oh-ih)/2:color=black",
+		width,
+		height,
+		width,
+		width,
+		height,
+		height,
+		width,
+		height,
+	)
 
 	var videoCmd strings.Builder
 	videoCmd.WriteString("ffmpeg -hide_banner ")
@@ -108,10 +98,9 @@ func getMediaDescription(filePath string, isVideo bool, ffmpegParameters string)
 	}
 
 	videoCmd.WriteString(fmt.Sprintf(
-		"-f rawvideo -r %d -pix_fmt yuv420p -vf \"scale=%d:%d:flags=lanczos:force_original_aspect_ratio=decrease\" -loglevel error pipe:1",
+		"-f rawvideo -r %d -pix_fmt yuv420p -vf \"%s\" -loglevel error pipe:1",
 		videoDescription.Fps,
-		videoDescription.Width,
-		videoDescription.Height,
+		scaleFilter,
 	))
 	videoDescription.Input = videoCmd.String()
 

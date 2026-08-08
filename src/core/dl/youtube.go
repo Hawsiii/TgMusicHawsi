@@ -328,7 +328,7 @@ func (y *youTubeData) buildYtdlpParams(videoID string, video bool) []string {
 	if video {
 		params = append(params,
 			"-f",
-			"bestvideo[height<=720]+bestaudio/best[height<=720]",
+			"bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]",
 			"--merge-output-format",
 			"mp4",
 		)
