@@ -46,7 +46,7 @@ func getMediaDescription(filePath string, isVideo bool, ffmpegParameters string)
 	}
 
 	audioCmd.WriteString(fmt.Sprintf(
-		"-f s16le -ac %d -ar %d -loglevel error pipe:1",
+		"-fflags +nobuffer -flags low_delay -threads 0 -f s16le -ac %d -ar %d -loglevel error pipe:1",
 		audioDescription.ChannelCount,
 		audioDescription.SampleRate,
 	))
@@ -98,7 +98,7 @@ func getMediaDescription(filePath string, isVideo bool, ffmpegParameters string)
 	}
 
 	videoCmd.WriteString(fmt.Sprintf(
-		"-f rawvideo -r %d -pix_fmt yuv420p -vf \"%s\" -loglevel error pipe:1",
+		"-fflags +nobuffer -flags low_delay -threads 0 -f rawvideo -r %d -pix_fmt yuv420p -vf \"%s\" -loglevel error pipe:1",
 		videoDescription.Fps,
 		scaleFilter,
 	))
